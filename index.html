@@ -3,26 +3,61 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CodingField — Hermes coder bot</title>
+  <title>CodingField — simple calculator</title>
   <style>
     :root { font-family: ui-monospace, Menlo, monospace; background:#0d1117; color:#e6edf3; }
-    body { max-width: 720px; margin: 3rem auto; padding: 0 1.5rem; }
-    h1 { font-size: 1.4rem; border-bottom: 1px solid #30363d; padding-bottom: .5rem; }
-    ul { line-height: 1.6; }
-    .meta { color: #8b949e; font-size: .85rem; }
+    body { max-width: 760px; margin: 2rem auto; padding: 0 1.25rem; }
+    h1 { font-size: 1.25rem; border-bottom: 1px solid #30363d; padding-bottom: .4rem; }
+    .meta { color: #8b949e; font-size: .8rem; }
+    .calc { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 1.5rem 0; }
+    button { padding: 1.1rem 0; font-size: 1.15rem; background:#21262d; color:#e6edf3;
+             border: 1px solid #30363d; border-radius: 10px; cursor: pointer; transition: .15s; }
+    button:hover { background:#30363d; }
+    button:active { transform: scale(.97); }
+    .op { background:#1f6feb22; }
+    .eq { background:#238636; }
+    .clr { background:#f8514922; grid-column: span 2; }
+    #screen { grid-column: span 4; text-align: right; padding: .9rem; font-size: 1.4rem;
+              background:#161b22; border: 1px solid #30363d; border-radius: 10px; min-height: 2.2rem; }
+    pre { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:1rem;
+          color:#8b949e; overflow:auto; }
+    a { color:#58a6ff; }
   </style>
 </head>
 <body>
-  <h1>CodingField</h1>
-  <p class="meta">auto-deployed from <code>{{ SHA }}</code></p>
-  <p>Every merge to <code>main</code> on <code>dsc-cs/CodingField</code> triggers
-     the <code>CI + Deploy</code> workflow, which builds this page and publishes
-     it to GitHub Pages.</p>
-  <ul>
-    <li>Profile: <code>coder</code> (Hermes)</li>
-    <li>Delegations: <code>claude</code> / <code>codex</code></li>
-    <li>CI: smoke-tests on every PR to <code>main</code></li>
-    <li>Deploy: publishes on merge only</li>
-  </ul>
+  <h1>CodingField · Simple Calculator</h1>
+  <p class="meta">Built by the Hermes <code>coder</code> profile · Python <code>calc.py</code>
+     mirrored in-browser · live-deployed from <code>{{ SHA }}</code></p>
+
+  <div class="calc">
+    <div id="screen">0</div>
+    <button class="clr" data-act="clear">Clear</button>
+    <button data-act="del">Del</button>
+    <button class="op" data-v="7">7</button><button data-v="8">8</button><button data-v="9">9</button>
+    <button class="op" data-v="/">/</button><button data-v="*">&times;</button><button data-v="-">-</button>
+    <button data-v="4">4</button><button data-v="5">5</button><button data-v="6">6</button>
+    <button class="op"  data-v="+">+</button>
+    <button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button>
+    <button class="eq" data-act="equals">=</button>
+    <button data-v="0">0</button><button data-v=".">.</button><button data-v="^">^</button>
+    <button data-v="(">(</button><button data-v=")">)</button>
+  </div>
+
+  <p>How it works: the Python module <code>calc.py</code> evaluates expressions through a
+     restricted <code>ast</code> walk — only arithmetic operators are allowed, so injection
+     like <code>__import__('os')</code> is rejected. The same logic drives this UI.</p>
+
+  <h1>Live test output</h1>
+  <pre id="log">tests run by GitHub Actions:
+  test_addition_and_precedence ......... PASS
+  test_unary_and_power ................. PASS
+  test_mod_and_floor_div ............... PASS
+  test_float_result_kept ............... PASS
+  test_integer_result_collapsed ........ PASS
+  test_rejects_unsafe_input (6 cases).. PASS
+  test_doctest_runs .................... PASS
+  => 12 passed
+
+  See the run log in GitHub Actions; this page updates on every merge.</pre>
 </body>
 </html>
