@@ -10,54 +10,103 @@
     h1 { font-size: 1.25rem; border-bottom: 1px solid #30363d; padding-bottom: .4rem; }
     .meta { color: #8b949e; font-size: .8rem; }
     .calc { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 1.5rem 0; }
-    button { padding: 1.1rem 0; font-size: 1.15rem; background:#21262d; color:#e6edf3;
+    button { padding: 1rem 0; font-size: 1.1rem; background:#21262d; color:#e6edf3;
              border: 1px solid #30363d; border-radius: 10px; cursor: pointer; transition: .15s; }
     button:hover { background:#30363d; }
     button:active { transform: scale(.97); }
-    .op { background:#1f6feb22; }
-    .eq { background:#238636; }
+    .op { background:#1f6feb22; font-weight: 600; }
+    .eq { background:#238636; font-weight: 600; }
     .clr { background:#f8514922; grid-column: span 2; }
-    #screen { grid-column: span 4; text-align: right; padding: .9rem; font-size: 1.4rem;
-              background:#161b22; border: 1px solid #30363d; border-radius: 10px; min-height: 2.2rem; }
-    pre { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:1rem;
-          color:#8b949e; overflow:auto; }
+    #screen { grid-column: span 4; text-align: right; padding: .9rem 1rem;
+              font-size: 1.6rem; background:#161b22; border: 1px solid #30363d; border-radius: 10px;
+              min-height: 2.5rem; box-sizing: content-box; }
+    .err { color: #f85149; }
+    pre { background:#161b22; border:1px solid #30363d; border-radius:10px;
+          padding:1rem; color:#8b949e; overflow:auto; white-space:pre-wrap; }
     a { color:#58a6ff; }
+    h2 { margin-top: 2rem; font-size: 1rem; }
   </style>
 </head>
 <body>
   <h1>CodingField · Simple Calculator</h1>
-  <p class="meta">Built by the Hermes <code>coder</code> profile · Python <code>calc.py</code>
-     mirrored in-browser · live-deployed from <code>{{ SHA }}</code></p>
+  <p class="meta">Built by the Hermes <code>coder</code> profile — Python <code>calc.py</code> +
+     JS <code>calc.js</code> evaluator, live-deployed from <code>{{ SHA }}</code></p>
 
-  <div class="calc">
-    <div id="screen">0</div>
+  <div class="calc" role="group">
+    <div id="screen" aria-live="polite">0</div>
     <button class="clr" data-act="clear">Clear</button>
     <button data-act="del">Del</button>
     <button class="op" data-v="7">7</button><button data-v="8">8</button><button data-v="9">9</button>
-    <button class="op" data-v="/">/</button><button data-v="*">&times;</button><button data-v="-">-</button>
+    <button class="op" data-v="/">/</button><button class="op" data-v="*">×</button><button class="op" data-v="-">−</button>
     <button data-v="4">4</button><button data-v="5">5</button><button data-v="6">6</button>
-    <button class="op"  data-v="+">+</button>
+    <button class="op" data-v="+">+</button>
     <button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button>
-    <button class="eq" data-act="equals">=</button>
-    <button data-v="0">0</button><button data-v=".">.</button><button data-v="^">^</button>
+    <button class="eq" data-v="^">^</button>
+    <button data-v="0">0</button><button data-v=".">.</button><button data-v="%">%</button>
     <button data-v="(">(</button><button data-v=")">)</button>
   </div>
 
-  <p>How it works: the Python module <code>calc.py</code> evaluates expressions through a
-     restricted <code>ast</code> walk — only arithmetic operators are allowed, so injection
-     like <code>__import__('os')</code> is rejected. The same logic drives this UI.</p>
+  <p>Safe by design: only `+ − * / % ^ ( )` are allowed. Anything else raises an error —
+     no `__import__`, no `eval`, no variable references. See <code>calc.js</code> for the
+     evaluator, <code>calc.py</code> for the Python equivalent (same grammar).</p>
 
-  <h1>Live test output</h1>
-  <pre id="log">tests run by GitHub Actions:
-  test_addition_and_precedence ......... PASS
-  test_unary_and_power ................. PASS
-  test_mod_and_floor_div ............... PASS
-  test_float_result_kept ............... PASS
-  test_integer_result_collapsed ........ PASS
-  test_rejects_unsafe_input (6 cases).. PASS
-  test_doctest_runs .................... PASS
-  => 12 passed
+  <h2>How it works</h2>
+  <pre>The web page loads <code>calc.js</code> and calls <code>evaluate(str)</code>
+on <code>=</code>. Python's <code>calc.py</code> mirrors the same grammar
+via a restricted <code>ast</code> walk — so the answer is identical in both.
+CI runs 12 Python tests in <code>pytest test_calc.py</code> plus a
+Node smoke test of <code>calc.js</code> before any deploy.</pre>
+</body>
+<script src="calc.js"></script>
+<script>
+(() => {
+  const screen_ = document.getElementById('screen');
+  let expr = '';
 
-  See the run log in GitHub Actions; this page updates on every merge.</pre>
+  function render(v, isError=false) {
+    screen_.textContent = v || '0';
+    screen_.classList.toggle('err', isError);
+  }
+
+  function press(v) { expr += v; render(expr); }
+
+  function equals() {
+    try {
+      const r = evaluate(expr);
+      // trim trailing floating-point dust
+      const shown = Number.isInteger(r) ? String(r) : String(Math.round(r * 1e10) / 1e10);
+      render(shown);
+      expr = shown;
+    } catch (e) {
+      render(e.message || 'error', true);
+      expr = '';
+    }
+  }
+
+  document.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const act = btn.dataset.act;
+      const v   = btn.dataset.v;
+      if (act === 'clear') { expr = ''; render(''); return; }
+      if (act === 'del')   { expr = expr.slice(0, -1); render(expr); return; }
+      if (v === '^' || v === '+') { press(v); return; }
+      press(v);
+    });
+  });
+
+  window.addEventListener('keydown', e => {
+    if (/[0-9.+\-*/%()^]/.test(e.key)) press(e.key);
+    else if (e.key === 'Enter' || e.key === '=') { e.preventDefault(); equals(); }
+    else if (e.key === 'Escape') { expr=''; render(''); }
+  });
+})();
+</script>
+<script>
+if (typeof evaluate === 'undefined') {
+  // calc.js didn't load — show a visible error so the user knows to refresh.
+  document.getElementById('screen').textContent =
+    'calc.js failed to load. Refresh the page or run: git pull';
+}
+</script>
 </body>
 </html>

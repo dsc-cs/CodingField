@@ -23,6 +23,12 @@ jobs:
         run: pip install --quiet pytest
       - name: Run tests
         run: pytest -v
+      - name: Run JS calculator test
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Node smoke test
+        run: node test_calc.js
       - name: Sanity check
         run: |
           [ -s index.html ] || { echo "index.html missing/empty"; exit 1; }
@@ -39,6 +45,7 @@ jobs:
         run: |
           mkdir -p deploy
           sed -e "s|{{ SHA }}|${{ github.sha }}|g" index.html > deploy/index.html
+          cp calc.js deploy/calc.js
       - uses: actions/upload-pages-artifact@v3
         with:
           path: deploy
