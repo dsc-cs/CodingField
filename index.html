@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CodingField — Hermes coder bot</title>
+  <style>
+    :root { font-family: ui-monospace, Menlo, monospace; background:#0d1117; color:#e6edf3; }
+    body { max-width: 720px; margin: 3rem auto; padding: 0 1.5rem; }
+    h1 { font-size: 1.4rem; border-bottom: 1px solid #30363d; padding-bottom: .5rem; }
+    ul { line-height: 1.6; }
+    .meta { color: #8b949e; font-size: .85rem; }
+  </style>
+</head>
+<body>
+  <h1>CodingField</h1>
+  <p class="meta">auto-deployed from <code>{{ SHA }}</code></p>
+  <p>Every merge to <code>main</code> on <code>dsc-cs/CodingField</code> triggers
+     the <code>CI + Deploy</code> workflow, which builds this page and publishes
+     it to GitHub Pages.</p>
+  <ul>
+    <li>Profile: <code>coder</code> (Hermes)</li>
+    <li>Delegations: <code>claude</code> / <code>codex</code></li>
+    <li>CI: smoke-tests on every PR to <code>main</code></li>
+    <li>Deploy: publishes on merge only</li>
+  </ul>
+</body>
+</html>
