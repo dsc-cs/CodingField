@@ -41,9 +41,10 @@
     <button data-v="4">4</button><button data-v="5">5</button><button data-v="6">6</button>
     <button class="op" data-v="+">+</button>
     <button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button>
-    <button class="eq" data-v="^">^</button>
+    <button class="op" data-v="^">^</button>
     <button data-v="0">0</button><button data-v=".">.</button><button data-v="%">%</button>
     <button data-v="(">(</button><button data-v=")">)</button>
+    <button class="eq" data-act="equals" style="grid-column: span 2">=</button>
   </div>
 
   <p>Safe by design: only `+ − * / % ^ ( )` are allowed. Anything else raises an error —
@@ -89,6 +90,7 @@ Node smoke test of <code>calc.js</code> before any deploy.</pre>
       const v   = btn.dataset.v;
       if (act === 'clear') { expr = ''; render(''); return; }
       if (act === 'del')   { expr = expr.slice(0, -1); render(expr); return; }
+      if (act === 'equals'){ equals(); return; }
       if (v === '^' || v === '+') { press(v); return; }
       press(v);
     });
