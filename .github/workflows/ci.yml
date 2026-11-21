@@ -16,10 +16,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Smoke test
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: pip install --quiet pytest
+      - name: Run tests
+        run: pytest -v
+      - name: Sanity check
         run: |
-          [ -s index.html ] || { echo "index.html is missing or empty"; exit 1; }
-          grep -q "CodingField" index.html || { echo "marker not found"; exit 1; }
+          [ -s index.html ] || { echo "index.html missing/empty"; exit 1; }
+          grep -q "Calculator" index.html || { echo "calculator marker not found"; exit 1; }
           echo "index.html OK"
 
   deploy:
