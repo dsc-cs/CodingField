@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CodingField — Weather</title>
+  <style>
+    :root { font-family: ui-monospace, Menlo, monospace; background:#0d1117; color:#e6edf3; }
+    body { max-width: 860px; margin: 2rem auto; padding: 0 1.25rem; }
+    h1 { font-size: 1.25rem; border-bottom: 1px solid #30363d; padding-bottom: .4rem; }
+    .meta { color:#8b949e; font-size:.8rem; }
+    a { color:#58a6ff; }
+    .search { display:flex; gap:.5rem; margin:1rem 0 1.5rem; flex-wrap:wrap; }
+    input, button { font-family:inherit; font-size:1rem; padding:.7rem .9rem; border-radius:10px; }
+    input { flex:1; min-width:180px; background:#161b22; color:#e6edf3; border:1px solid #30363d; }
+    button { background:#1f6feb; color:#fff; border:none; border-radius:10px; cursor:pointer; }
+    button:hover { background:#388bfd; }
+    #now { background:#161b22; border:1px solid #30363d; border-radius:12px; padding:1.25rem;
+           display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; }
+    #now .big { font-size:3rem; }
+    section { margin-top:1.75rem; }
+    h2 { font-size:1rem; margin-bottom:.75rem; }
+    .hour-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:.5rem; }
+    .hr { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:.6rem; text-align:center; font-size:.85rem; }
+    .hr .t { color:#8b949e; }
+    .hr .p { color:#58a6ff; }
+    .day-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:.6rem; }
+    .day { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:.75rem; text-align:center; }
+    .day .lo { color:#8b949e; font-size:.85rem; }
+    .day .hi { font-size:1.2rem; }
+    .err { color:#f85149; }
+    .ok { color:#3fb950; }
+  </style>
+</head>
+<body>
+  <h1>CodingField · Weather</h1>
+  <p class="meta">Enter a ZIP / postcode to see detailed conditions, hour-by-hour forecast, and the
+     next five days. Data: Open-Meteo + OpenStreetMap Nominatim (free, no key).
+     Deployed from <code>{{ SHA }}</code>.</p>
+
+  <div class="search">
+    <input id="zip" type="text" inputmode="text" placeholder="ZIP / postcode (e.g. 10001, 90210, 2000)" autocomplete="postal-code" />
+    <button id="go">Get weather</button>
+    <a href="index.html">← Calculator</a>
+  </div>
+
+  <p id="status" class="meta">Type a ZIP and press Enter (or click Get weather).</p>
+
+  <section id="now-section" hidden>
+    <h2>Current conditions</h2>
+    <div id="now"></div>
+  </section>
+
+  <section id="hour-section" hidden>
+    <h2>Hour-by-hour</h2>
+    <div id="hours" class="hour-grid"></div>
+  </section>
+
+  <section id="day-section" hidden>
+    <h2>Next five days</h2>
+    <div id="days" class="day-grid"></div>
+  </section>
+
+<script>
+(async function () {
+  const zipInput = document.getElementById('zip');
+  const status = document.getElementById('status');
+  const nowEl = document.getElementById('now');
+  const hoursEl = document.getElementById('hours');
+  const daysEl = document.getElementById('days');
+  const sections = [document.getElementById('now-section'),
+                    document.getElementById('hour-section'),
+                    document.getElementById('day-section')];
+
+  // WMO weather codes -> [description, emoji]
+  const WMO = {
+    0:['Clear', '☀️'], 1:['Mainly clear','🌤️'], 2:['Partly cloudy','⛅'], 3:['Overcast','☁️'],
+    45:['Fog','🌫️'], 48:['Rime fog','🌫️'],
+    51:['Light drizzle','🌦️'], 53:['Drizzle','🌦️'], 55:['Dense drizzle','🌦️'],
+    56:['Freezing drizzle','🌧️'], 57:['Freezing drizzle','🌧️'],
+    61:['Light rain','🌧️'], 63:['Rain','🌧️'], 65:['Heavy rain','⛈️'],
+    66:['Freezing rain','🌧️'], 67:['Freezing rain','🌧️'],
+    71:['Light snow','🌨️'], 73:['Snow','🌨️'], 75:['Heavy snow','❄️'],
+    77:['Snow grains','🌨️'],
+    80:['Rain showers','🌦️'], 81:['Rain showers','🌧️'], 82:['Violent showers','⛈️'],
+    85:['Snow showers','🌨️'], 86:['Snow showers','❄️'],
+    95:['Thunderstorm','⛈️'], 96:['Thunderstorm','⛈️'], 99:['Thunderstorm','⛈️'],
+  };
+  function describe(c){ return WMO[c] || ['Unknown','❓']; }
+  function fmtTemp(c){ return (c==null?'?':Math.round(c)) + '°C'; }
+  function fmtHour(iso){ const d=new Date(iso); return d.toLocaleTimeString([], {hour:'numeric'}); }
+  function fmtDay(iso){ const d=new Date(iso); return d.toLocaleDateString([], {weekday:'long', month:'short', day:'numeric'}); }
+  function setErr(msg){ status.textContent=msg; status.className='meta err'; }
+  function setOk(msg){ status.textContent=msg; status.className='meta ok'; }
+
+  async function geocode(input){
+    // "ZIP" framing: a bare 5-digit number is treated as a US ZIP so common
+    // inputs resolve to the USA instead of a coincidentally-named foreign
+    // postcode. Anything else (longer codes, city names, letters) is global.
+    let url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=0'
+      + '&limit=1&countrycodes=';
+    if (/^(\d{5}|\d{5}-\d{4})$/.test(input.trim())) url += 'US';
+    url += '&q=' + encodeURIComponent(input.trim());
+    const r = await fetch(url, { headers: { 'User-Agent': 'hermes-codingfield' } });
+    if (!r.ok) throw new Error('geocode failed: ' + r.status);
+    const j = await r.json();
+    if (!j || j.length === 0) throw new Error('no place found for ' + input.trim());
+    return { lat: parseFloat(j[0].lat), lon: parseFloat(j[0].lon),
+             name: j[0].display_name };
+  }
+
+  async function getWeather(lat, lon){
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon
+      + '&current=temperature_2m,weathercode,wind_speed_10m,relative_humidity_2m,precipitation'
+      + '&hourly=temperature_2m,weathercode,precipitation_probability'
+      + '&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max'
+      + '&forecast_days=5&timezone=auto';
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('forecast failed: ' + r.status);
+    return r.json();
+  }
+
+  function renderNow(w, name){
+    const c = w.current;
+    const [desc, icon] = describe(c.weathercode);
+    nowEl.innerHTML =
+      '<div><div class="big">' + icon + ' ' + fmtTemp(c.temperature_2m) + '</div>' +
+      '<div>' + desc.replace(/^./, s=>s.toLowerCase()) + ' · humidity ' + c.relative_humidity_2m + '% · ' +
+      'wind ' + Math.round(c.wind_speed_10m) + ' km/h</div>' +
+      '<div class="meta" style="margin-top:.4rem">' + name + '</div></div>';
+    document.getElementById('now-section').hidden = false;
+  }
+
+  function renderHours(w){
+    const h = w.hourly;
+    const now = Date.now();
+    let html = '';
+    let count = 0;
+    for (let i = 0; i < h.time.length && count < 24; i++){
+      const t = new Date(h.time[i]);
+      if (t.getTime() < now - 3600000) continue; // skip past
+      const [desc, icon] = describe(h.weathercode[i]);
+      const p = h.precipitation_probability[i];
+      html += '<div class="hr"><div class="t">' + fmtHour(h.time[i]) + '</div>' +
+              '<div>' + icon + '</div>' +
+              '<div>' + fmtTemp(h.temperature_2m[i]) + '</div>' +
+              '<div class="p">' + (p==null?'—':p+'%') + '</div></div>';
+      count++;
+    }
+    hoursEl.innerHTML = html;
+    document.getElementById('hour-section').hidden = false;
+  }
+
+  function renderDays(w){
+    const d = w.daily;
+    let html = '';
+    for (let i = 0; i < d.time.length; i++){
+      const [desc, icon] = describe(d.weathercode[i]);
+      const p = d.precipitation_probability_max[i];
+      html += '<div class="day"><div>' + fmtDay(d.time[i]) + '</div>' +
+              '<div>' + icon + '</div>' +
+              '<div>' + desc + '</div>' +
+              '<div class="hi">' + fmtTemp(d.temperature_2m_max[i]) +
+              '</div><div class="lo">low ' + fmtTemp(d.temperature_2m_min[i]) +
+              ' · ' + (p==null?'—':p+'%') + '</div></div>';
+    }
+    daysEl.innerHTML = html;
+    document.getElementById('day-section').hidden = false;
+  }
+
+  async function run(){
+    const zip = zipInput.value.trim();
+    if (!zip){ setErr('Please enter a ZIP / postcode.'); return; }
+    setOk('Locating ' + zip + '…');
+    try {
+      const place = await geocode(zip);
+      setOk(place.name + ' — fetching forecast…');
+      const w = await getWeather(place.lat, place.lon);
+      renderNow(w, place.name);
+      renderHours(w);
+      renderDays(w);
+      setOk('Weather for ' + zip + ' · ' + place.name + ' · ' + w.timezone);
+    } catch (e) {
+      setErr(e.message || 'Something went wrong.');
+    }
+  }
+
+  document.getElementById('go').addEventListener('click', run);
+  zipInput.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+  zipInput.focus();
+})();
+</script>
+</body>
+</html>
