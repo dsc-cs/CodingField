@@ -45,6 +45,7 @@ jobs:
         run: |
           mkdir -p deploy
           sed -e "s|{{ SHA }}|${{ github.sha }}|g" index.html > deploy/index.html
+          cat weather.html | sed -e "s|{{ SHA }}|${{ github.sha }}|g" > deploy/weather.html
           cp calc.js deploy/calc.js
       - uses: actions/upload-pages-artifact@v3
         with:
