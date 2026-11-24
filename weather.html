@@ -5,54 +5,106 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CodingField — Weather</title>
   <style>
-    :root { font-family: ui-monospace, Menlo, monospace; background:#0d1117; color:#e6edf3; }
+    :root {
+      /* css/design-token-reactivity: oklch design tokens — lightness/luminance
+         based, perceptually uniform; a density/theme token propagates through
+         descendant components automatically. */
+      --bg: oklch(0.16 0.008 250);
+      --bg-elev: oklch(0.20 0.012 250);
+      --fg: oklch(0.96 0.004 250);
+      --mut: oklch(0.72 0.012 250);
+      --acc: oklch(0.70 0.15 250);
+      --ok: oklch(0.82 0.18 145);
+      --danger: oklch(0.66 0.20 25);
+      --line: oklch(0.34 0.01 250);
+      --density: 1;              /* 0.85 compact · 1 comfortable · 1.25 spacious */
+      --pad: calc(1rem * var(--density));
+      --gap: calc(.6rem * var(--density));
+      font-family: ui-monospace, Menlo, monospace;
+      background: var(--bg); color: var(--fg);
+    }
+    /* responsive-design: container query + fluid type scale */
+    .wrap { container-type: inline-size; }
     body { max-width: 860px; margin: 2rem auto; padding: 0 1.25rem; }
-    h1 { font-size: 1.25rem; border-bottom: 1px solid #30363d; padding-bottom: .4rem; }
-    .meta { color:#8b949e; font-size:.8rem; }
-    a { color:#58a6ff; }
+    h1 { font-size: clamp(1.2rem, .8rem + 1.6vw, 1.6rem);
+         border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+    .meta { color:var(--mut); font-size:.8rem; }
+    a { color:var(--acc); }
     .search { display:flex; gap:.5rem; margin:1rem 0 1.5rem; flex-wrap:wrap; }
     input, button { font-family:inherit; font-size:1rem; padding:.7rem .9rem; border-radius:10px; }
-    input { flex:1; min-width:180px; background:#161b22; color:#e6edf3; border:1px solid #30363d; }
-    button { background:#1f6feb; color:#fff; border:none; border-radius:10px; cursor:pointer; }
-    button:hover { background:#388bfd; }
-    #now { background:#161b22; border:1px solid #30363d; border-radius:12px; padding:1.25rem;
-           display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; }
-    #now .big { font-size:3rem; }
+    input { flex:1; min-width:180px; background:var(--bg-elev); color:var(--fg);
+            border:1px solid var(--line); }
+    button { background:var(--acc); color:#0a1018; border:none; border-radius:10px; cursor:pointer; font-weight:600; }
+    button:hover { filter: brightness(1.12); }
+    /* brand-consistent-forms: keep native control focus visible + on-brand */
+    input:focus-visible, button:focus-visible, [role="button"]:focus-visible, .favrow:focus-visible {
+      outline: 2px solid var(--acc); outline-offset: 2px; }
+    #now { background:var(--bg-elev); border:1px solid var(--line); border-radius:12px; padding:var(--pad);
+           display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;
+           /* fluid type: the big temperature scales with the container, not the
+              viewport — a small card keeps its type readable. */
+           font-size: clamp(1rem, .6rem + 2cqi, 1.5rem); }
+    #now .big { font-size: clamp(2rem, 1.4rem + 4cqi, 3.4rem); }
     section { margin-top:1.75rem; }
-    h2 { font-size:1rem; margin-bottom:.75rem; }
+    h2 { font-size:1.05rem; margin-bottom:.75rem; }
     .hour-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:.5rem; }
-    .hr { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:.6rem; text-align:center; font-size:.85rem; }
-    .hr .t { color:#8b949e; }
-    .hr .p { color:#58a6ff; }
+    .hr { background:var(--bg-elev); border:1px solid var(--line); border-radius:10px; padding:.6rem; text-align:center; font-size:.85rem; }
+    .hr .t { color:var(--mut); }
+    .hr .p { color:var(--acc); }
     .day-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:.6rem; }
-    details.day { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:.75rem; text-align:center; transition:.15s; }
-    details.day[open] { border-color:#1f6feb; }
+    details.day { background:var(--bg-elev); border:1px solid var(--line); border-radius:10px; padding:.75rem; text-align:center; transition:.15s; }
+    details.day[open] { border-color:var(--acc); }
     details.day > summary { cursor:pointer; list-style:none; user-select:none; }
     details.day > summary::-webkit-details-marker { display:none; }
-    details.day > summary:hover { color:#58a6ff; }
+    details.day > summary:hover { color:var(--acc); }
     details.day > summary .dname { display:block; font-weight:600; }
-    .detail { margin-top:.6rem; padding-top:.6rem; border-top:1px solid #30363d; font-size:.85rem; text-align:left; }
-    .detail .meta { color:#8b949e; font-size:.78rem; margin-top:.3rem; }
-    .day .lo { color:#8b949e; font-size:.85rem; }
+    .detail { margin-top:.6rem; padding-top:.6rem; border-top:1px solid var(--line); font-size:.85rem; text-align:left; }
+    .detail .meta { color:var(--mut); font-size:.78rem; margin-top:.3rem; }
+    .day .lo { color:var(--mut); font-size:.85rem; }
     .day .hi { font-size:1.2rem; display:block; }
     .day summary .hi { margin-left:.25rem; }
-    .err { color:#f85149; }
-    .ok { color:#3fb950; }
+    /* status: accessible-error-announcement / html — role toggles status<->alert */
+    .err { color:var(--danger); font-weight:600; }
+    .ok { color:var(--ok); }
+    /* native <dialog> for the favorites overlay — free modality, focus trap, Esc */
+    dialog.favs { background:var(--bg-elev); color:var(--fg); border:1px solid var(--line);
+      border-radius:14px; padding:1.25rem; max-width:360px; width:90%; box-shadow:0 8px 40px rgba(0,0,0,.5); }
+    dialog.favs::backdrop { background:rgba(0,0,0,.55); }
+    .favrow { display:flex; align-items:center; gap:.5rem; width:100%; text-align:left;
+      background:transparent; color:var(--fg); border:1px solid var(--line); border-radius:8px;
+      padding:.55rem .7rem; margin:.35rem 0; cursor:pointer; font:inherit; }
+    .favrow .x { margin-left:auto; color:var(--mut); border:none; background:transparent;
+      cursor:pointer; padding:.15rem .4rem; font-size:1rem; line-height:1; }
+    .favrow:hover { border-color:var(--acc); }
+    .faves-empty { color:var(--mut); font-size:.85rem; padding:.4rem 0; }
+    .faves-h { display:flex; align-items:center; justify-content:space-between; margin-bottom:.5rem; }
+    .faves-h h2 { margin:0; }
   </style>
 </head>
 <body>
+  <div class="wrap">
   <h1>CodingField · Weather</h1>
   <p class="meta">Enter a ZIP / postcode to see detailed conditions, hour-by-hour forecast, and the
      next five days. Data: Open-Meteo + OpenStreetMap Nominatim (free, no key).
      Deployed from <code>{{ SHA }}</code>.</p>
 
-  <div class="search">
-    <input id="zip" type="text" inputmode="text" placeholder="ZIP / postcode (e.g. 10001, 90210, 2000)" autocomplete="postal-code" />
-    <button id="go">Get weather</button>
+  <!-- forms: a real <form> with a labelled control + native fallback submit. -->
+  <form id="search-form" class="search" autocomplete="off">
+    <label for="zip" class="visually-hidden" style="position:absolute;left:-9999px">ZIP or postcode</label>
+    <input id="zip" name="zip" type="text" inputmode="text" placeholder="ZIP / postcode (e.g. 10001, 90210, 2000)"
+           autocomplete="postal-code" aria-describedby="status" autofocus />
+    <button id="go" type="submit">Get weather</button>
+    <button id="favs-open" type="button" title="Saved places">★ Favorites</button>
     <a href="index.html">← Calculator</a>
-  </div>
+  </form>
 
-  <p id="status" class="meta">Type a ZIP and press Enter (or click Get weather).</p>
+  <!-- status: role=status (polite) for progress; switches to role=alert (assertive)
+       on error so screen readers announce failures without waiting. -->
+  <p id="status" role="status" aria-live="polite" class="meta">Type a ZIP and press Enter (or click Get weather).</p>
+
+  <div id="current-name" class="meta" hidden></div>
+  <button id="save-current" type="button" class="favrow" hidden
+          style="width:auto;margin:.5rem 0 0" title="Save this place to favorites">★ save this place</button>
 
   <section id="now-section" hidden>
     <h2>Current conditions</h2>
@@ -69,7 +121,16 @@
     <div id="days" class="day-grid"></div>
   </section>
 
-<script>
+  <!-- html: native <dialog> — modality, focus trap, backdrop, Esc all for free. -->
+  <dialog id="favs" class="favs" aria-label="Saved places">
+    <div class="faves-h">
+      <h2>Saved places</h2>
+      <button id="favs-close" type="button" class="favrow" style="width:auto;padding:2px 8px;margin:0">✕</button>
+    </div>
+    <div id="favs-list"></div>
+  </dialog>
+  </div>
+<script type="text/javascript">
 (async function () {
   const zipInput = document.getElementById('zip');
   const status = document.getElementById('status');
@@ -98,8 +159,10 @@
   function fmtTemp(c){ return (c==null?'?':Math.round(c)) + '°C'; }
   function fmtHour(iso){ const d=new Date(iso); return d.toLocaleTimeString([], {hour:'numeric'}); }
   function fmtDay(iso){ const d=new Date(iso); return d.toLocaleDateString([], {weekday:'long', month:'short', day:'numeric'}); }
-  function setErr(msg){ status.textContent=msg; status.className='meta err'; }
-  function setOk(msg){ status.textContent=msg; status.className='meta ok'; }
+  function setErr(msg){ status.textContent=msg; status.className='meta err';
+                         status.setAttribute('role','alert'); status.setAttribute('aria-live','assertive'); }
+  function setOk(msg){ status.textContent=msg; status.className='meta ok';
+                       status.setAttribute('role','status'); status.setAttribute('aria-live','polite'); }
 
   async function geocode(input){
     // "ZIP" framing: a bare 5-digit number is treated as a US ZIP so common
@@ -205,6 +268,57 @@
     document.getElementById('day-section').hidden = false;
   }
 
+  // ---- favorites: localStorage-backed, shown in a native <dialog> ----
+  const FKEY = 'cf.weather.favorites.v1';
+  function loadFavs(){ try { return JSON.parse(localStorage.getItem(FKEY) || '[]'); }
+                       catch { return []; } }
+  function saveFavs(list){ try { localStorage.setItem(FKEY, JSON.stringify(list)); } catch {} }
+  function shortName(full){
+    // turn "New York, NY, United States of America" -> "New York, NY"
+    const parts = full.split(',');
+    return (parts.slice(0, 2).join(',')).trim();
+  }
+  const favsDialog = document.getElementById('favs');
+  const favsList = document.getElementById('favs-list');
+  const favsOpen = document.getElementById('favs-open');
+  const favsClose = document.getElementById('favs-close');
+  const saveBtn = document.getElementById('save-current');
+  const currentNameEl = document.getElementById('current-name');
+
+  function isFav(fullName){ return loadFavs().some(f => f.full === fullName || f.name === fullName); }
+  function renderFavs(){
+    const favs = loadFavs();
+    if (!favs.length) {
+      favsList.innerHTML = '<p class="faves-empty">No saved places yet. Save a place after you look it up.</p>';
+      return;
+    }
+    favsList.innerHTML = '';
+    for (const f of favs){
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'favrow';
+      row.innerHTML = '<span>⭐ ' + f.name + '</span><span class="x" title="remove">✕</span>';
+      row.addEventListener('click', () => { zipInput.value = f.zip; run(); });
+      row.querySelector('.x').addEventListener('click', ev => {
+        ev.stopPropagation();
+        saveFavs(loadFavs().filter(x => x.name !== f.name));
+        renderFavs();
+      });
+      favsList.appendChild(row);
+    }
+  }
+  favsOpen.addEventListener('click', () => { renderFavs(); favsDialog.showModal(); });
+  favsClose.addEventListener('click', () => favsDialog.close());
+  saveBtn.addEventListener('click', () => {
+    const name = currentNameEl.dataset.full;
+    if (!name) return;
+    const list = loadFavs();
+    if (isFav(name)){ setOk(name + ' already saved.'); return; }
+    list.push({ name: shortName(name), full: name, zip: zipInput.value.trim() });
+    saveFavs(list);
+    setOk('Saved ' + shortName(name) + ' to favorites.');
+  });
+
   async function run(){
     const zip = zipInput.value.trim();
     if (!zip){ setErr('Please enter a ZIP / postcode.'); return; }
@@ -216,16 +330,23 @@
       renderNow(w, place.name);
       renderHours(w);
       renderDays(w);
+      // expose the current place for "save this place"
+      currentNameEl.dataset.full = place.name;
+      saveBtn.hidden = false;
+      saveBtn.textContent = isFav(place.name) ? '★ saved' : '★ save this place';
       setOk('Weather for ' + zip + ' · ' + place.name + ' · ' + w.timezone);
     } catch (e) {
       setErr(e.message || 'Something went wrong.');
     }
   }
 
-  document.getElementById('go').addEventListener('click', run);
-  // IME-safe enter: skip composition (CJK input) — check isComposing / keyCode 229.
+  // forms: real <form> submit (Enter submits by default). Keep the keyboard path
+  // IME-safe so CJK composition doesn't submit a half-typed postcode.
+  const form = document.getElementById('search-form');
+  form.addEventListener('submit', e => { e.preventDefault(); run(); });
   zipInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); run(); }
+    // native form already handles Enter; only guard composition here.
+    if (e.key === 'Enter' && (e.isComposing || e.keyCode === 229)) e.stopPropagation();
   });
   zipInput.focus();
 })();
