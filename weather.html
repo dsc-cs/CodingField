@@ -25,7 +25,9 @@
     .hr .t { color:#8b949e; }
     .hr .p { color:#58a6ff; }
     .day-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:.6rem; }
-    .day { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:.75rem; text-align:center; }
+    a.day { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:.75rem; text-align:center;
+            color:inherit; text-decoration:none; display:block; transition:.15s; }
+    a.day:hover { background:#1f2937; border-color:#1f6feb; }
     .day .lo { color:#8b949e; font-size:.85rem; }
     .day .hi { font-size:1.2rem; }
     .err { color:#f85149; }
@@ -114,7 +116,7 @@
       + '&current=temperature_2m,weathercode,wind_speed_10m,relative_humidity_2m,precipitation'
       + '&hourly=temperature_2m,weathercode,precipitation_probability'
       + '&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max'
-      + '&forecast_days=5&timezone=auto';
+      + '&forecast_days=6&timezone=auto';
     const r = await fetch(url);
     if (!r.ok) throw new Error('forecast failed: ' + r.status);
     return r.json();
@@ -151,18 +153,44 @@
     document.getElementById('hour-section').hidden = false;
   }
 
-  function renderDays(w){
+  function detailLink(lat, lon, t){
+    // t is "YYYY-MM-DDT00:00" — use the calendar date directly.
+    const m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const yyyy = m ? m[1] : new Date().getFullYear();
+    const p = [
+      'll='+lat, 'lo='+lon,
+      'fc='+[
+        'weather_code', 'temperature_2m_max', 'temperature_2m_min',
+        'precipitation_probability_max', 'wind_speed_10m_max',
+      ].join(','),
+      'fcu=' + yyyy,
+    ].join('&');
+    return 'https://open-meteo.com/en?'+p;
+  }
+
+  function renderDays(w, place){
     const d = w.daily;
+    const lat = place.lat, lon = place.lon;
+    // "Next five days" begins tomorrow — compare calendar dates as YYYY-MM-DD
+    // strings so timezone offsets at midnight can't shift a day by one.
+    const todayKey = d.time[0].split('T')[0];
     let html = '';
+    let shown = 0;
     for (let i = 0; i < d.time.length; i++){
+      const key = d.time[i].split('T')[0];
+      if (key === todayKey) { continue; }   // skip today
+      if (shown >= 5) break;
       const [desc, icon] = describe(d.weathercode[i]);
       const p = d.precipitation_probability_max[i];
-      html += '<div class="day"><div>' + fmtDay(d.time[i]) + '</div>' +
+      const link = detailLink(lat, lon, d.time[i]);
+      html += '<a class="day" href="' + link + '" target="_blank" rel="noopener noreferrer" title="Open detailed forecast for this day">' +
+              '<div>' + fmtDay(d.time[i]) + '</div>' +
               '<div>' + icon + '</div>' +
               '<div>' + desc + '</div>' +
               '<div class="hi">' + fmtTemp(d.temperature_2m_max[i]) +
               '</div><div class="lo">low ' + fmtTemp(d.temperature_2m_min[i]) +
-              ' · ' + (p==null?'—':p+'%') + '</div></div>';
+              ' · ' + (p==null?'—':p+'%') + ' →</div></a>';
+      shown++;
     }
     daysEl.innerHTML = html;
     document.getElementById('day-section').hidden = false;
@@ -178,7 +206,7 @@
       const w = await getWeather(place.lat, place.lon);
       renderNow(w, place.name);
       renderHours(w);
-      renderDays(w);
+      renderDays(w, place);
       setOk('Weather for ' + zip + ' · ' + place.name + ' · ' + w.timezone);
     } catch (e) {
       setErr(e.message || 'Something went wrong.');
@@ -186,7 +214,10 @@
   }
 
   document.getElementById('go').addEventListener('click', run);
-  zipInput.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+  // IME-safe enter: skip composition (CJK input) — check isComposing / keyCode 229.
+  zipInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); run(); }
+  });
   zipInput.focus();
 })();
 </script>
