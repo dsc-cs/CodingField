@@ -9,7 +9,12 @@
     body { max-width: 760px; margin: 2rem auto; padding: 0 1.25rem; }
     h1 { font-size: 1.25rem; border-bottom: 1px solid #30363d; padding-bottom: .4rem; }
     .meta { color: #8b949e; font-size: .8rem; }
-    .calc { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 1.5rem 0; }
+    .calc { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 1.5rem 0;
+            border: 2px solid #30363d; border-radius: 14px; padding: 10px; }
+    /* style-parent-with-has: card turns red when the screen is in an error state */
+    .calc:has(#screen.err) { border-color: #f85149; }
+    #error { min-height: 1rem; font-size: .85rem; }
+    .error-txt { color: #f85149; font-weight: 600; }
     button { padding: 1rem 0; font-size: 1.1rem; background:#21262d; color:#e6edf3;
              border: 1px solid #30363d; border-radius: 10px; cursor: pointer; transition: .15s; }
     button:hover { background:#30363d; }
@@ -32,8 +37,10 @@
   <p class="meta">Built by the Hermes <code>coder</code> profile — Python <code>calc.py</code> +
      JS <code>calc.js</code> evaluator, live-deployed from <code>{{ SHA }}</code></p>
 
-  <div class="calc" role="group">
-    <div id="screen" aria-live="polite">0</div>
+  <div id="error" role="alert" aria-live="assertive"></div>
+
+  <div class="calc" role="group" aria-label="Calculator keypad">
+    <div id="screen" aria-live="polite" aria-invalid="false">0</div>
     <button class="clr" data-act="clear">Clear</button>
     <button data-act="del">Del</button>
     <button class="op" data-v="7">7</button><button data-v="8">8</button><button data-v="9">9</button>
@@ -62,16 +69,23 @@ Node smoke test of <code>calc.js</code> before any deploy.</pre>
 <script>
 (() => {
   const screen_ = document.getElementById('screen');
+  const errorEl = document.getElementById('error');
   let expr = '';
+  let interacted = false; // accessible-error-announcement: announce error only after input
 
   function render(v, isError=false) {
     screen_.textContent = v || '0';
     screen_.classList.toggle('err', isError);
+    screen_.setAttribute('aria-invalid', isError ? 'true' : 'false');
+    // Announce synchronously with the interaction that produced it, never on load.
+    if (isError && interacted) errorEl.textContent = '\u26A0 ' + (v || 'error');
+    else if (!isError && interacted) errorEl.textContent = '';
   }
 
-  function press(v) { expr += v; render(expr); }
+  function press(v) { interacted = true; expr += v; render(expr); }
 
   function equals() {
+    interacted = true;
     try {
       const r = evaluate(expr);
       // trim trailing floating-point dust
@@ -88,8 +102,13 @@ Node smoke test of <code>calc.js</code> before any deploy.</pre>
     btn.addEventListener('click', () => {
       const act = btn.dataset.act;
       const v   = btn.dataset.v;
-      if (act === 'clear') { expr = ''; render(''); return; }
-      if (act === 'del')   { expr = expr.slice(0, -1); render(expr); return; }
+      if (act === 'clear') { expr=''; interacted=false; errorEl.textContent=''; render(''); return; }
+      if (act === 'del')   {
+        interacted = true;
+        expr = expr.slice(0, -1);
+        render(expr);
+        return;
+      }
       if (act === 'equals'){ equals(); return; }
       if (v === '^' || v === '+') { press(v); return; }
       press(v);
@@ -97,9 +116,16 @@ Node smoke test of <code>calc.js</code> before any deploy.</pre>
   });
 
   window.addEventListener('keydown', e => {
-    if (/[0-9.+\-*/%()^]/.test(e.key)) press(e.key);
+    // ime-safe-enter-submit: don't submit or type while an IME is composing.
+    const composing = e.isComposing || e.keyCode === 229;
+    if (composing) return;
+    let KEYS = null;
+    if (!KEYS) KEYS = new Set('0123456789+.\-*/%()^'.split(''));
+    if (KEYS.has(e.key)) press(e.key);
     else if (e.key === 'Enter' || e.key === '=') { e.preventDefault(); equals(); }
-    else if (e.key === 'Escape') { expr=''; render(''); }
+    else if (e.key === 'Escape') {
+      expr=''; interacted = false; errorEl.textContent=''; render('');
+    }
   });
 })();
 </script>
